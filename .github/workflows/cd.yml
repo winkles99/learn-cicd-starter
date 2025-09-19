@@ -30,7 +30,29 @@ jobs:
           IMAGE_URI: ${{ secrets.GAR_IMAGE_URI }}
         run: |
           set -euo pipefail
-          echo "Building and pushing image: $IMAGE_URI"
+          if [ -z "${IMAGE_URI:-}" ]; then
+            echo "::error:: GAR_IMAGE_URI secret is not set or empty."
+            echo "Expected format: REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/IMAGE:latest"
+            echo "Example: us-central1-docker.pkg.dev/my-gcp-project/notely-repo/notely:latest"
+            echo "Create the repository first (one-time):"
+            echo "  gcloud artifacts repositories create notely-repo --repository-format=docker --location=us-central1 --description=\"Notely images\""
+            exit 1
+          fi
+          echo "Submitting Cloud Build for image: $IMAGE_URI"
           gcloud builds submit --tag "$IMAGE_URI" .
+          echo "Cloud Build finished for $IMAGE_URI"
       - name: Output image reference
         run: echo "Image pushed: ${{ secrets.GAR_IMAGE_URI }}"
+      - name: List image tags (debug)
+        if: always()
+        env:
+          IMAGE_URI: ${{ secrets.GAR_IMAGE_URI }}
+        run: |
+          set -euo pipefail
+          if [ -z "${IMAGE_URI:-}" ]; then
+            echo "Skipping tag list because IMAGE_URI is empty"
+            exit 0
+          fi
+          REPO_PATH=$(echo "$IMAGE_URI" | awk -F':' '{print $1}')
+          echo "Listing tags for $REPO_PATH"
+          gcloud artifacts docker tags list "$REPO_PATH" --format='table(TAG,DIGEST)' || echo "Could not list tags (image may not exist yet)"
