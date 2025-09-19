@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.1"
+
+      - name: Run Unit Tests with Coverage
+        run: go test -cover ./...
+
+      - name: CI Badge
+        run: echo "![CI Badge](https://github.com/winkles99/learn-cicd-starter/actions/workflows/ci.yml/badge.svg)"
