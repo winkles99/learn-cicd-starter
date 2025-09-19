@@ -53,3 +53,19 @@ jobs:
           echo "Pushed image (commit): ${{ steps.build_and_push.outputs.image_uri }}"
           echo "Pushed image (latest): ${{ steps.build_and_push.outputs.latest_uri }}"
           echo "Image digest: ${{ steps.build_and_push.outputs.image_digest }}"
+      - name: List images in Artifact Registry (debug)
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          REGION: ${{ secrets.GAR_REGION }}
+          REPOSITORY: ${{ secrets.GAR_REPOSITORY }}
+        run: |
+          echo "Listing images after push..."
+          gcloud artifacts docker images list "$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY" --project "$PROJECT_ID" || echo "List failed"
+      - name: List tags for image (debug)
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          REGION: ${{ secrets.GAR_REGION }}
+          REPOSITORY: ${{ secrets.GAR_REPOSITORY }}
+        run: |
+          echo "Listing tags for notely image..."
+          gcloud artifacts docker tags list "$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/notely" --project "$PROJECT_ID" || echo "Tag list failed"
