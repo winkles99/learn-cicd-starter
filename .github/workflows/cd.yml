@@ -18,6 +18,7 @@ jobs:
       PROJECT_ID: notely-472602-472604 # TODO: verify this is the correct GCP project id
       REPOSITORY: notely-ar-repo
       IMAGE_NAME: my-app
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
       - name: Check out code
@@ -72,5 +73,6 @@ jobs:
             --allow-unauthenticated \
             --project "${PROJECT_ID}" \
             --max-instances=4 \
+            --set-env-vars "PORT=8080,DATABASE_URL=${DATABASE_URL}" \
             --platform=managed
           echo "Deployment complete"
