@@ -8,16 +8,7 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    # Fail fast on multiple pushes; newest run will cancel older in-flight ones
-    concurrency:
-      group: cd-main
-      cancel-in-progress: true
-
     env:
-      REGION: us-central1
-      PROJECT_ID: notely-472602-472604 # TODO: verify this is the correct GCP project id
-      REPOSITORY: notely-ar-repo
-      IMAGE_NAME: my-app
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
@@ -27,57 +18,37 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          # Match the version declared in go.mod (1.22). Pin a specific patch for reproducibility.
-          go-version: "1.22.6"
+          go-version: "1.25.1"
 
-      - name: Install goose (DB migration tool)
-        run: go install github.com/pressly/goose/v3/cmd/goose@latest
-
-      - name: Build app binary
+      - name: Build app
         run: ./scripts/buildprod.sh
 
       - id: auth
-        name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_CREDENTIALS }}
 
-      - name: Install gcloud CLI
-        uses: google-github-actions/setup-gcloud@v2
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
 
-      - name: Configure Docker auth for Artifact Registry
-        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
-
-      - name: gcloud info (debug)
-        run: gcloud info
-
-      - name: Build and push Docker image (Cloud Build)
+       - name: Build and push Docker image (Cloud Build)
         run: |
           set -euo pipefail
           SHORT_SHA="${GITHUB_SHA::7}"
           BASE_PATH="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}"
           IMAGE_SHA_TAG="${BASE_PATH}:${SHORT_SHA}"
           IMAGE_LATEST_TAG="${BASE_PATH}:latest"
-          echo "Building and pushing image tagged with commit: ${IMAGE_SHA_TAG}" 
+          echo "Building and pushing image tagged with commit: ${IMAGE_SHA_TAG}"
           gcloud builds submit --tag "${IMAGE_SHA_TAG}" .
           echo "Adding 'latest' tag referencing same image digest"
           gcloud container images add-tag "${IMAGE_SHA_TAG}" "${IMAGE_LATEST_TAG}" --quiet
           echo "Image available as: ${IMAGE_SHA_TAG} and ${IMAGE_LATEST_TAG}"
-      - name: Run database migrations (migrateup.sh)
-        if: env.DATABASE_URL != ''
-        run: |
-          set -euo pipefail
-          echo "Executing migrateup.sh against ${DATABASE_URL}"
-          chmod +x ./scripts/migrateup.sh
-          ./scripts/migrateup.sh
-          echo "Migrations complete"
 
-      - name: Scan for accidental credentials
-        run: |
-          set -euo pipefail
-          echo "Scanning working tree (not committed) for potential secrets patterns"
-          git diff | grep -E '(DATABASE_URL|PASSWORD|SECRET|API_KEY)' || echo "No obvious secrets in diff"
-          echo "(This is a lightweight heuristic; consider adding gitleaks for stronger scanning.)"
+      - name: Install goose
+        run: go install github.com/pressly/goose/v3/cmd/goose@latest
+
+      - name: Run migrations
+        run: ./scripts/migrateup.sh
 
       - name: Deploy to Cloud Run
         run: |
