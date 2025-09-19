@@ -20,3 +20,36 @@ jobs:
           ./scripts/buildprod.sh
       - name: List build artifacts
         run: ls -lh notely || echo "Binary not built"
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
+      - name: Configure Docker auth for Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.GAR_REGION }}-docker.pkg.dev --quiet
+      - name: Build and Push Image to Artifact Registry
+        id: build_and_push
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          REGION: ${{ secrets.GAR_REGION }}
+          REPOSITORY: ${{ secrets.GAR_REPOSITORY }}
+          IMAGE_NAME: notely
+        run: |
+          IMAGE_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:${GITHUB_SHA}"
+          LATEST_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:latest"
+          echo "Building image $IMAGE_URI"
+          docker build --platform=linux/amd64 -t "$IMAGE_URI" .
+          # Also tag as latest for convenience
+          docker tag "$IMAGE_URI" "$LATEST_URI"
+          docker push "$IMAGE_URI"
+          docker push "$LATEST_URI"
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE_URI" | cut -d'@' -f2)
+          echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+          echo "latest_uri=$LATEST_URI" >> $GITHUB_OUTPUT
+          echo "image_digest=$DIGEST" >> $GITHUB_OUTPUT
+      - name: Show pushed image URI
+        run: |
+          echo "Pushed image (commit): ${{ steps.build_and_push.outputs.image_uri }}"
+          echo "Pushed image (latest): ${{ steps.build_and_push.outputs.latest_uri }}"
+          echo "Image digest: ${{ steps.build_and_push.outputs.image_digest }}"
