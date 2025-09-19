@@ -5,13 +5,18 @@ on:
     branches: [main]
 
 jobs:
-  deploy:
-    name: Deploy (placeholder)
+  Deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Show commit
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.1"
+      - name: Build binary
         run: |
-          echo "Deploy pipeline triggered on main commit: $GITHUB_SHA"
-          echo "(Placeholder) Add deployment steps here later."
+          chmod +x scripts/buildprod.sh
+          ./scripts/buildprod.sh
+      - name: List build artifacts
+        run: ls -lh notely || echo "Binary not built"
