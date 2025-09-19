@@ -21,6 +21,12 @@ jobs:
       - name: Run Unit Tests with Coverage
         run: go test -cover ./...
 
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+
+      - name: Run gosec (expected to fail initially)
+        run: gosec ./...
+
       - name: CI Badge
         run: echo "![CI Badge](https://github.com/winkles99/learn-cicd-starter/actions/workflows/ci.yml/badge.svg)"
 
