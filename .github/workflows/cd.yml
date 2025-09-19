@@ -59,3 +59,18 @@ jobs:
           echo "Adding 'latest' tag referencing same image digest"
           gcloud container images add-tag "${IMAGE_SHA_TAG}" "${IMAGE_LATEST_TAG}" --quiet
           echo "Image available as: ${IMAGE_SHA_TAG} and ${IMAGE_LATEST_TAG}"
+
+      - name: Deploy to Cloud Run
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA::7}"
+          IMAGE_PATH="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:${SHORT_SHA}"
+          echo "Deploying ${IMAGE_PATH} to Cloud Run service 'notely' in region ${REGION}"          
+          gcloud run deploy notely \
+            --image "${IMAGE_PATH}" \
+            --region "${REGION}" \
+            --allow-unauthenticated \
+            --project "${PROJECT_ID}" \
+            --max-instances=4 \
+            --platform=managed
+          echo "Deployment complete"
