@@ -63,18 +63,14 @@ jobs:
           echo "Adding 'latest' tag referencing same image digest"
           gcloud container images add-tag "${IMAGE_SHA_TAG}" "${IMAGE_LATEST_TAG}" --quiet
           echo "Image available as: ${IMAGE_SHA_TAG} and ${IMAGE_LATEST_TAG}"
-
-      - name: Run database migrations
+      - name: Run database migrations (migrateup.sh)
         if: env.DATABASE_URL != ''
         run: |
           set -euo pipefail
-          echo "Running migrations against ${DATABASE_URL}"
-          if ! command -v goose > /dev/null; then
-            echo "goose not found on PATH" >&2
-            exit 1
-          fi
-          # Expecting migrations in sql/schema (adjust if needed)
-          goose -v -dir ./sql/schema sqlite3 "${DATABASE_URL}" up
+          echo "Executing migrateup.sh against ${DATABASE_URL}"
+          chmod +x ./scripts/migrateup.sh
+          ./scripts/migrateup.sh
+          echo "Migrations complete"
 
       - name: Scan for accidental credentials
         run: |
