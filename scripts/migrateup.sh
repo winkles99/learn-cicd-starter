@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Optionally source local overrides (dev only). In CI the DATABASE_URL should
-# come from the GitHub Actions secret injected at the job level.
+# Load local overrides only in dev; CI provides env vars directly.
 if [[ -f .env ]]; then
     # shellcheck disable=SC1091
     source .env
@@ -13,16 +12,11 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
     exit 0
 fi
 
-echo "[migrateup] Starting migrations with goose (driver=sqlite3)"
+echo "[migrateup] Running migrations with goose (driver=sqlite3) against ${DATABASE_URL}"
 cd sql/schema
 
-# goose driver note: Turso/libsql is SQLite compatible. The goose CLI does not
-# have a dedicated 'turso' driver; using sqlite3 works for libsql remote URLs
-# when the libsql driver is installed. If remote libsql URL is unsupported by
-# the bundled sqlite3 driver, this will fail fast.
-
 if ! command -v goose >/dev/null 2>&1; then
-    echo "[migrateup] ERROR: goose binary not found on PATH." >&2
+    echo "[migrateup] ERROR: goose not found on PATH." >&2
     exit 1
 fi
 
