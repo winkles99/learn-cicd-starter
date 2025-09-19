@@ -30,5 +30,8 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 		return
 	}
 	w.WriteHeader(code)
-	w.Write(dat)
+	if _, err := w.Write(dat); err != nil {
+		// Log the error; at this point headers already sent, can't change response code.
+		log.Printf("Error writing response body: %v", err)
+	}
 }
