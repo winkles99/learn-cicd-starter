@@ -9,7 +9,13 @@ jobs:
     name: Deploy
     runs-on: ubuntu-latest
     env:
+      # Secrets
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # Deployment parameters (adjust if your infra differs)
+      REGION: us-central1
+      PROJECT_ID: notely-472602-472604
+      REPOSITORY: notely-ar-repo
+      IMAGE: notely
 
     steps:
       - name: Check out code
@@ -18,46 +24,47 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.1"
+          # Match go.mod (go 1.22). Pin patch for reproducibility.
+          go-version: "1.22.6"
 
       - name: Build app
         run: ./scripts/buildprod.sh
 
       - id: auth
+        name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_CREDENTIALS }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v2
 
-       - name: Build and push Docker image (Cloud Build)
+      - name: Build and push Docker image
         run: |
           set -euo pipefail
           SHORT_SHA="${GITHUB_SHA::7}"
-          BASE_PATH="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}"
-          IMAGE_SHA_TAG="${BASE_PATH}:${SHORT_SHA}"
-          IMAGE_LATEST_TAG="${BASE_PATH}:latest"
-          echo "Building and pushing image tagged with commit: ${IMAGE_SHA_TAG}"
-          gcloud builds submit --tag "${IMAGE_SHA_TAG}" .
-          echo "Adding 'latest' tag referencing same image digest"
-          gcloud container images add-tag "${IMAGE_SHA_TAG}" "${IMAGE_LATEST_TAG}" --quiet
-          echo "Image available as: ${IMAGE_SHA_TAG} and ${IMAGE_LATEST_TAG}"
+          IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${SHORT_SHA}"
+          echo "Building image: ${IMAGE_URI}"
+          gcloud builds submit --tag "${IMAGE_URI}" .
+          echo "Tagging :latest"
+          gcloud container images add-tag "${IMAGE_URI}" "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:latest" --quiet
+          echo "Image ready: ${IMAGE_URI} and :latest"
 
       - name: Install goose
         run: go install github.com/pressly/goose/v3/cmd/goose@latest
 
       - name: Run migrations
+        if: env.DATABASE_URL != ''
         run: ./scripts/migrateup.sh
 
-      - name: Deploy to Cloud Run
+      - name: Deploy to Cloud Run (notely)
         run: |
           set -euo pipefail
           SHORT_SHA="${GITHUB_SHA::7}"
-          IMAGE_PATH="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:${SHORT_SHA}"
-          echo "Deploying ${IMAGE_PATH} to Cloud Run service 'notely' in region ${REGION}"          
+          IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${SHORT_SHA}"
+          echo "Deploying ${IMAGE_URI} to Cloud Run service 'notely' in ${REGION}"
           gcloud run deploy notely \
-            --image "${IMAGE_PATH}" \
+            --image "${IMAGE_URI}" \
             --region "${REGION}" \
             --allow-unauthenticated \
             --project "${PROJECT_ID}" \
