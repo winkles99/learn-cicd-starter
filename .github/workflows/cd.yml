@@ -18,41 +18,18 @@ jobs:
         run: |
           chmod +x scripts/buildprod.sh
           ./scripts/buildprod.sh
-      - name: List build artifacts
-        run: ls -lh notely || echo "Binary not built"
       - name: Set up gcloud CLI
         uses: google-github-actions/setup-gcloud@v2
         with:
           service_account_key: ${{ secrets.GCP_CREDENTIALS }}
           export_default_credentials: true
-      - name: Cloud Build submit (latest tag)
-        env:
-          IMAGE_URI: ${{ secrets.GAR_IMAGE_URI }}
+      - name: Build and push image (Cloud Build)
         run: |
           set -euo pipefail
-          if [ -z "${IMAGE_URI:-}" ]; then
-            echo "::error:: GAR_IMAGE_URI secret is not set or empty."
-            echo "Expected format: REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/IMAGE:latest"
-            echo "Example: us-central1-docker.pkg.dev/my-gcp-project/notely-repo/notely:latest"
-            echo "Create the repository first (one-time):"
-            echo "  gcloud artifacts repositories create notely-repo --repository-format=docker --location=us-central1 --description=\"Notely images\""
+          if [ -z "${{ secrets.GAR_IMAGE_URI }}" ]; then
+            echo "::error:: Missing GAR_IMAGE_URI secret. Set it in repo settings."
             exit 1
           fi
-          echo "Submitting Cloud Build for image: $IMAGE_URI"
-          gcloud builds submit --tag "$IMAGE_URI" .
-          echo "Cloud Build finished for $IMAGE_URI"
-      - name: Output image reference
-        run: echo "Image pushed: ${{ secrets.GAR_IMAGE_URI }}"
-      - name: List image tags (debug)
-        if: always()
-        env:
-          IMAGE_URI: ${{ secrets.GAR_IMAGE_URI }}
-        run: |
-          set -euo pipefail
-          if [ -z "${IMAGE_URI:-}" ]; then
-            echo "Skipping tag list because IMAGE_URI is empty"
-            exit 0
-          fi
-          REPO_PATH=$(echo "$IMAGE_URI" | awk -F':' '{print $1}')
-          echo "Listing tags for $REPO_PATH"
-          gcloud artifacts docker tags list "$REPO_PATH" --format='table(TAG,DIGEST)' || echo "Could not list tags (image may not exist yet)"
+          echo "gcloud builds submit --tag ${{ secrets.GAR_IMAGE_URI }} ."
+          gcloud builds submit --tag "${{ secrets.GAR_IMAGE_URI }}" .
+          echo "Image pushed: ${{ secrets.GAR_IMAGE_URI }}"
